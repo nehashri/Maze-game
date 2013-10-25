@@ -74,12 +74,7 @@ body {
 
 .sharedCanvas {
 	border: 2px solid transparent;
-	z-index: 3;
-}
-
-.myCanvas {
-    background-repeat: no-repeat;
-	background-image: url(../img/maze.png);
+	z-index: 1;
 }
 
 .userList {
