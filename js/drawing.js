@@ -17,11 +17,13 @@ DrawingPad = function(options) {
 		"draw",
 		"line",
 		"trash",
-		"save"
+		"save",
+		"undo"
 	],
 	settings = $.extend(defaults, options), 
 	DP={};
 	DP.points=[];
+	DP.backupPoints=[];
 	
 	DP.isTouchDevice = 'ontouchstart' in document.documentElement;
 	
@@ -134,6 +136,7 @@ DrawingPad = function(options) {
 				DP.okToDraw = true;
 				if(fromMe && !data.isLineDrawing){
 					DP.points.push({x : data.x, y : data.y});
+					DP.backupPoints.push({x : data.x, y : data.y});
 				} else if(data.isLineDrawing) {	//for line drawing we only need the coords
 					DP.thisObj[data.id].x = data.x;
 					DP.thisObj[data.id].y = data.y;
@@ -153,6 +156,7 @@ DrawingPad = function(options) {
 				} else if(fromMe){
 					scratchCtx.clearRect(0, 0, DP.myCanvas.width, DP.myCanvas.height); 
 					DP.points.push({x : data.x, y : data.y});
+					DP.backupPoints.push({x : data.x, y : data.y});
 					_drawPoints(scratchCtx);
 				} else if(!data.isLineDrawing) { //this is coming from drawing a shared canvas
 					ctx.lineTo(data.x, data.y);
@@ -181,6 +185,18 @@ DrawingPad = function(options) {
 	
 	}
 	
+	function undo(){
+		var ctx = DP.thisObj[10].ctx,
+			scratchCtx = DP.thisObj.scratch.ctx;
+			
+			//set the ctx
+			ctx.strokeStyle = "#FFFFFF";
+			ctx.lineWidth = 5;
+			ctx.lineCap = "round";
+			ctx.lineJoin = "round";
+			_undrawPoints(ctx);
+			
+	}
 	//////////////////\ PRIVATE METHODS \////////////////
 	/**
 	 * Simple Random Id Generator
@@ -216,7 +232,6 @@ DrawingPad = function(options) {
 
 			DP.thisObj[id] = {};
 			DP.thisObj[id].ctx = sharedCanvas.getContext('2d');
-            
 
 			$(DP.thisObj).append(sharedCanvas);
 		}
@@ -371,7 +386,11 @@ DrawingPad = function(options) {
 					DP.thisObj.socket.emit("eraseRequestById",{id : DP.thisObj.id});
 				});
 				$(".alert").show().alert();
-			}
+			}  else if($(this).hasClass(tools[5])){
+				
+				undo();
+				
+			   }
 		}).hover(function(){
 			$(this).addClass("hover");
 		},function(){
@@ -407,6 +426,7 @@ DrawingPad = function(options) {
 	 * Smoothes out the line your drawing.
 	 * @param {Object} ctx 
 	 */
+	 
 	function _drawPoints(ctx) {
 		var i, len, c, d;
 		if (DP.points.length < 3) {
@@ -427,6 +447,42 @@ DrawingPad = function(options) {
 		ctx.quadraticCurveTo(DP.points[i].x, DP.points[i].y, DP.points[i + 1].x, DP.points[i + 1].y);
 		ctx.stroke();
 	}
+	
+	function _undrawPoints(ctx) {
+		var i, len, c, d;
+		var numberOfPointsToUndo;
+		if (DP.backupPoints.length < 6) {
+			numberOfPointsToUndo = DP.backupPoints.length;
+			len = (DP.backupPoints.length);
+		}
+		else{
+			len = (DP.backupPoints.length -2);
+			numberOfPointsToUndo = 5;
+			}
+		
+		
+		ctx.beginPath();
+		ctx.moveTo(DP.backupPoints[len - numberOfPointsToUndo].x, DP.backupPoints[len - numberOfPointsToUndo].y);
+
+		
+
+		for ( i = len - numberOfPointsToUndo; i < len; i++) {
+			c = ((DP.backupPoints[i].x + DP.backupPoints[i + 1].x) / 2);
+			d = ((DP.backupPoints[i].y + DP.backupPoints[i + 1].y) / 2);
+			ctx.quadraticCurveTo(DP.backupPoints[i].x, DP.backupPoints[i].y, c, d);
+			
+		}
+		
+		ctx.quadraticCurveTo(DP.backupPoints[i].x, DP.backupPoints[i].y, DP.backupPoints[i + 1].x, DP.backupPoints[i + 1].y);
+		ctx.stroke();
+		for ( i = 0; i < numberOfPointsToUndo; i++) {
+			DP.backupPoints.pop();
+			
+		}
+		ctx.strokeStyle = "#000000";
+		ctx.lineWidth = 4;
+		
+	}
 	//////////////////\ START PUBLIC METHODS \////////////////
 	
 	/**
@@ -434,7 +490,7 @@ DrawingPad = function(options) {
 	 */
 	this.init = function(selector) {
 		
-		var id = _randomString(10);
+		var id = 10;
 		DP.myCanvas = document.createElement('canvas');
 		DP.scratchCanvas = document.createElement('canvas'); 
 		DP.thisObj = $(selector);
